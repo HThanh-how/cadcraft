@@ -169,7 +169,8 @@ pub(crate) enum ViewMode {
     /// Always fit the drawing extents
     Extents,
     /// The current view, as last set by zoom, pan or view.set (a freshly opened drawing's view is
-    /// its extents plus a 10% margin)
+    /// its extents plus a 10% margin, or the view its file was saved with when the extents are 10
+    /// times higher than that view)
     Current,
 }
 

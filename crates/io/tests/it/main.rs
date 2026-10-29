@@ -53,6 +53,7 @@ mod plot_model_png_scale;
 mod plot_styles;
 mod region_roundtrip;
 mod roundtrip_audit;
+mod saved_view;
 mod skipped_records;
 mod sortents;
 mod spline_fit_data;

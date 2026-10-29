@@ -144,5 +144,6 @@ mod vplayer_prompts;
 mod vports;
 mod xdata_follows_entity;
 mod zoom_keywords;
+mod zoom_opened;
 mod zoom_viewport;
 mod zoom_window_ortho;

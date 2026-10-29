@@ -190,6 +190,9 @@ pub(super) fn tables(tags: &[Tag], d: &mut Drawing, rx: &mut Rx) {
             // The first *ACTIVE viewport holds the current snap/grid settings.
             "VPORT" if !active_vport && t.s(2).is_some_and(|n| n.trim().eq_ignore_ascii_case("*ACTIVE")) => {
                 active_vport = true;
+                // Only a plan view is the view the drawing opens at: a tilted or twisted one would
+                // show as something else, so it opens at the extents.
+                d.saved_view = vport_tile(&t).filter(|_| plan_view(&t));
                 vport_record(d, &t);
                 for (name, code) in [("SNAPUNIT", 14), ("GRIDUNIT", 15)] {
                     if let (Some(x), Some(y)) = (t.f(code), t.f(code + 10)) {
@@ -310,11 +313,31 @@ fn index_table_handles(recs: &[(String, Vec<Tag>)], rx: &mut Rx) {
 /// Most tiles a viewport configuration keeps.
 const MAX_VPORT_TILES: usize = 64;
 
-/// A VPORT record: one tile of the configuration it names (`*ACTIVE` the one shown). Corners
-/// are fractions of the drawing area; unusable tiles are skipped.
-fn vport_record(d: &mut Drawing, t: &T) {
-    let name = t.s(2).map(|n| n.trim().to_string()).unwrap_or_default();
-    let (min, max, center) = (t.p(10).xy(), t.p(11).xy(), t.p(12).xy());
+/// Whether a VPORT record is a plan view (looking down Z, direction code 16 defaulting to
+/// (0, 0, 1)) without twist (code 51) or perspective (bit 1 of the view mode, code 71): the only
+/// views CADCraft shows.
+fn plan_view(t: &T) -> bool {
+    let dir = Vec3::new(t.fd(16, 0.0), t.fd(26, 0.0), t.fd(36, 1.0));
+    let twist = t.fd(51, 0.0).rem_euclid(360.0);
+    let untwisted = twist < 1e-9 || 360.0 - twist < 1e-9;
+    let flat = t.i(71).unwrap_or(0) & 1 == 0;
+    dir.z > 0.0 && dir.x.abs() <= 1e-9 * dir.z && dir.y.abs() <= 1e-9 * dir.z && untwisted && flat
+}
+
+/// The view centre of a VPORT record in world coordinates. The record holds it in the view's own
+/// coordinates (code 12), relative to the view target (code 17): a plan view panned away from the
+/// origin, as AutoCAD saves it, has a target far from (0, 0) and a centre that cancels it. Any
+/// other view keeps the centre as stored.
+fn view_center(t: &T) -> Vec2 {
+    let centre = t.p(12).xy();
+    let target = t.p(17);
+    if plan_view(t) && target.x.is_finite() && target.y.is_finite() { centre + target.xy() } else { centre }
+}
+
+/// The tile a VPORT record describes, or `None` when it is not a usable viewport (corners outside
+/// the unit square, a flat tile, a centre or height that is not a finite positive number).
+fn vport_tile(t: &T) -> Option<VportTile> {
+    let (min, max, center) = (t.p(10).xy(), t.p(11).xy(), view_center(t));
     let height = t.fd(40, 0.0);
     let unit = |v: f64| v.is_finite() && (-1e-9..=1.0 + 1e-9).contains(&v);
     let ok = [min.x, min.y, max.x, max.y].into_iter().all(unit)
@@ -323,12 +346,22 @@ fn vport_record(d: &mut Drawing, t: &T) {
         && center.is_finite()
         && height.is_finite()
         && height > 0.0;
-    if name.is_empty() || !ok {
-        return;
+    if !ok {
+        return None;
     }
     let aspect = t.f(41).filter(|a| a.is_finite() && *a > 0.0).unwrap_or(0.0);
     let clamp = |p: Vec2| Vec2::new(p.x.clamp(0.0, 1.0), p.y.clamp(0.0, 1.0));
-    let tile = VportTile { min: clamp(min), max: clamp(max), center, height, aspect };
+    Some(VportTile { min: clamp(min), max: clamp(max), center, height, aspect })
+}
+
+/// A VPORT record: one tile of the configuration it names (`*ACTIVE` the one shown). Corners
+/// are fractions of the drawing area; unusable tiles are skipped.
+fn vport_record(d: &mut Drawing, t: &T) {
+    let name = t.s(2).map(|n| n.trim().to_string()).unwrap_or_default();
+    let Some(tile) = vport_tile(t) else { return };
+    if name.is_empty() {
+        return;
+    }
     let name = if name.eq_ignore_ascii_case(VportConfig::ACTIVE) { VportConfig::ACTIVE.to_string() } else { name };
     let room = d.vports.len() < MAX_OBJECTS;
     match d.vports.iter_mut().find(|c| c.name.eq_ignore_ascii_case(&name)) {

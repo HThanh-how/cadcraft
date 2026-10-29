@@ -14,11 +14,13 @@ impl Session {
         self.active
     }
 
-    /// Append a loaded drawing, fit the view to its model extents (aspect-corrected, minimum height 1e-6) when non-empty, end a running command, make it active, bump the epoch and return its index.
+    /// Append a loaded drawing, show its saved view (see [`super::zoom::saved_open_view`]) or else fit the view to its model extents (aspect-corrected, minimum height 1e-6) when non-empty, end a running command, make it active, bump the epoch and return its index.
     pub fn open_drawing(&mut self, d: Drawing, title: &str, path: Option<String>) -> usize {
         let mut st = DocState::new(d, title, path);
         let ext = st.doc.extents(&Space::Model);
-        if !ext.is_empty() {
+        if let Some(v) = super::zoom::saved_open_view(&st.doc, &Space::Model, &ext, self.viewport_px) {
+            st.set_view_quiet(v);
+        } else if !ext.is_empty() {
             st.set_view_quiet(View {
                 center: ext.center(),
                 height: (ext.height().max(ext.width() * self.viewport_px.1 / self.viewport_px.0.max(1.0)) * 1.1).max(1e-6),

@@ -106,6 +106,10 @@ pub struct Drawing {
     pub views: Vec<NamedView>,
     /// Model space viewport configurations (VPORTS): the tiles shown and named ones.
     pub vports: Vec<VportConfig>,
+    /// The model view the file was saved with (its `*Active` viewport), kept when that is a single
+    /// tile and so not in [`Drawing::vports`]; the view the drawing opens at when its extents are
+    /// far higher than it (a few objects far from the rest). Never written to a file.
+    pub saved_view: Option<VportTile>,
     pub ucss: Vec<Ucs>,
     pub layer_states: Vec<LayerState>,
     pub groups: Vec<Group>,
@@ -179,6 +183,7 @@ impl Drawing {
             active_layout: None,
             views: Vec::new(),
             vports: Vec::new(),
+            saved_view: None,
             ucss: Vec::new(),
             layer_states: Vec::new(),
             groups: Vec::new(),
@@ -380,6 +385,11 @@ impl Drawing {
             }
         }
         b
+    }
+
+    /// Whether any visible entity of a space has bounds that meet `area` (stops at the first).
+    pub fn shows_entities(&self, space: &Space, area: &cadcraft_geom::Bounds2) -> bool {
+        self.space(space).is_some_and(|store| store.iter().any(|e| self.is_visible(e) && entity_bounds(self, e, 0).intersects(area)))
     }
 
     /// Total entity count across model and paper space.

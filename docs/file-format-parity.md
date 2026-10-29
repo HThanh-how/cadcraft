@@ -1,6 +1,6 @@
 # File-format parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-25 · **Change:** minor (LAYOUT SAveas writes a layout as a DWT template) · **Target:** Autodesk AutoCAD 2027
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-30 · **Change:** minor (a drawing opens at the view its file was saved with) · **Target:** Autodesk AutoCAD 2027
 
 Every format AutoCAD 2027 reads or writes, with CADCraft's support, fidelity and tests. Work
 items are in [gaps.md](gaps.md#file-formats); the weighted score feeds
@@ -93,7 +93,7 @@ on read with a note, so such files no longer exceed the DXF limit (#1482). **DWG
 | 3DSOLID, BODY, SURFACE, MESH, SHAPE, UNDERLAY, OLE2FRAME, LIGHT, CAMERA, SECTION, POINTCLOUD, proxy entities | kept as Unknown (raw tags) | written back as read, with their CLASS records (#528); a proxy entity's class number (group 91) is renumbered to its class's place in the written CLASSES (#1812); **dropped by DWG save** (acadrust) | only their layer follows edits |
 | Header variables | all read | 36 written | AutoCAD writes about 280 |
 | Tables: LAYER (+ transparency, description), LTYPE, STYLE, DIMSTYLE, BLOCK_RECORD | yes | yes | |
-| Tables: VPORT, VIEW, UCS, APPID | yes | yes: saved viewport configurations (#504), named views, UCSs | UCS elevation lost |
+| Tables: VPORT, VIEW, UCS, APPID | yes: a single `*Active` plan view is read (its centre relative to its target, as AutoCAD saves it) and is the view a drawing opens at when its extents are 10 times higher than it | yes: saved viewport configurations (#504), named views, UCSs; the `*Active` view written is the extents, not the current view | UCS elevation lost |
 | Objects: LAYOUT, DICTIONARY, XRECORD, TABLESTYLE, DIMASSOC | yes | yes | |
 | Objects: GROUP, MLINESTYLE, MLEADERSTYLE, IMAGEDEF, SCALE | yes | yes (groups #417, scale list #468) | |
 | Objects: VISUALSTYLE, PLOTSETTINGS, materials, field objects and other unmodelled objects | kept raw (#528) | written back as read; a proxy object (ACAD_PROXY_OBJECT) keeps its class: its group 91 is renumbered to the written CLASSES, which keep the class it names, and one whose number names no class is dropped (#1812) | not editable |
@@ -140,6 +140,7 @@ our output in AutoCAD black-box.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-30 | minor | A drawing whose extents are 10 times higher than the model view its file was saved with (the `*Active` VPORT, a plan view with its centre mapped through the view target as AutoCAD saves it) opens at that view instead of at the extents, in every way of opening it; a saved view that shows none of the visible objects, a tilted, twisted or perspective one, or one not that much smaller than the extents opens at the extents as before. A DWG with a few far-away objects used to open on a blank screen. Full AutoCAD parity (always opening at the saved view) is the constant `SAVED_VIEW_MIN_ZOOM` set to 1 |
 | 2026-10-25 | minor | LAYOUT SAveas (`layout.saveas`) writes a layout as a drawing template: its page setup and paper space objects, no model space objects or other layouts, and only the named objects they use |
 | 2026-10-22 | minor | DXF/DWG save: angular, diametric and radial dimensions get standard DIMASSOC objects (one centre reference to the circle for radial/diametric, the definition points for angular), so AutoCAD follows their geometry; the standard objects of those kinds are read back too, without CADCraft's xdata (#1651) |
 | 2026-10-19 | minor | DXF/DWG save: angular dimension block text honors DIMDSEP, including per-dimension overrides (#1646) |
